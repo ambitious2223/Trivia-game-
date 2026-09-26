@@ -18,8 +18,8 @@ import KingsHallOverlay from "./KingsHallOverlay";
 export default function DebugMenu({
   onTriggerGift, onSimulateViewer, onSkip, currentGoal, onUpdateGoal, onReset, triggerRules, setTriggerRules, 
   questionDuration, onUpdateQuestionDuration, resultDuration, onUpdateResultDuration,
-  votingDuration, onUpdateVotingDuration, isPaused, onTogglePause, onAddWinner, categories, onForceCategory, 
-  onStartRandom, onStartGame, onStartVoting, onEmergencyClear,
+  votingDuration, onUpdateVotingDuration, isPaused, onTogglePause, categories, onForceCategory, 
+  onStartRandom, onStartVoting, onEmergencyClear,
   globalLikes, sessionLikes, sessionGifts = 0, setSessionGifts, gateActive = false, gateProgress = 0, gateRemaining = 0,
   gateTarget = 5000, setGateTarget, gateStep = null, gateKind = null,
   gateMode = "both", setGateMode, gateEvery = 3, setGateEvery,
@@ -28,7 +28,7 @@ export default function DebugMenu({
   likesEnabled, setLikesEnabled,
   likesLabel, setLikesLabel,
   votingGateTitle, setVotingGateTitle,
-  usedQuestionIds = [], setUsedQuestionIds, questionList = [], setQuestionList, qIdx = 0, currentCategory = "",
+  usedQuestionIds = [], setUsedQuestionIds, questionList = [], qIdx = 0, currentCategory = "",
   isTTSMuted, setIsTTSMuted, ttsPersona, setTtsPersona, players = {}, handleAddManualWinner,
   ttsSpeed, setTtsSpeed, revealDelay, setRevealDelay, evalDelay, setEvalDelay, 
   votingResultDelay, setVotingResultDelay, wheelResultDelay, setWheelResultDelay,
@@ -90,8 +90,6 @@ export default function DebugMenu({
   const dragInfo = useRef({ startX: 0, startY: 0, initialX: position.x, initialY: position.y });
 
   const totalQs = questionList?.length || 0;
-  const verifiedQs = questionList?.filter(q => q.verified === true).length || 0;
-  const progressPercent = totalQs > 0 ? Math.round((verifiedQs / totalQs) * 100) : 0;
   const activeQ = questionList[qIdx % (totalQs || 1)] || null;
 
   const handleMouseDown = (e) => { 
@@ -160,7 +158,7 @@ export default function DebugMenu({
         localStorage.removeItem("trivia_gift_vertical_offset");
         alert("✅ تم استيراد النسخة الاحتياطية! سيتم تحديث الصفحة."); 
         window.location.reload();
-      } catch(err) { alert("❌ صيغة غير صحيحة."); }
+      } catch { alert("❌ صيغة غير صحيحة."); }
     };
     reader.readAsText(file);
   };

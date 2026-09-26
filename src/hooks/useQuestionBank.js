@@ -3,7 +3,6 @@ import { useState, useEffect, useCallback, useRef } from "react";
 import {
   TRIVIA_QUESTIONS,
   getQuestionsByCategory,
-  getPointsForDifficulty,
   applyClassicPoints,
   MAX_QUESTION_POINTS,
 } from "../utils/QuestionManager.js";
