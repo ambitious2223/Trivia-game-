@@ -1,0 +1,13 @@
+{
+  "debugMenu": {
+    "title": "Debug Panel",
+    "tabs": {
+      "game": "Game",
+      "audio": "Audio"
+    },
+    "buttons": {
+      "resume": "Resume",
+      "pause": "Pause"
+    }
+  }
+}

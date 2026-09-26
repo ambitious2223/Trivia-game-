@@ -1,0 +1,669 @@
+================================================================================
+  TRIVIA GAME — AUTOMATED TESTS (reference copy)
+================================================================================
+Open this file anytime you want the commands + full test source in one place.
+
+The real runnable scripts live in the /scripts folder. This .txt is a backup
+reference only — edit the .mjs files if you change tests, then update this
+file if you want the copy to stay in sync.
+
+
+--------------------------------------------------------------------------------
+HOW TO RUN (from the project folder)
+--------------------------------------------------------------------------------
+
+  Full suite (recommended before going LIVE):
+
+      npm test
+
+  One suite at a time:
+
+      npm run verify:gifts
+      npm run test:voting-skip
+      npm run test:answers
+      npm run test:persistence
+      npm run test:trust
+
+  Or call Node directly:
+
+      node scripts/verify-gift-map.mjs
+      node scripts/test-voting-skip.mjs
+      node scripts/test-answer-matching.mjs
+      node scripts/test-persistence.mjs
+      node scripts/test-host-trust.mjs
+
+No browser. No internet. No TikTok bridge. Exit code 0 = all OK.
+
+
+--------------------------------------------------------------------------------
+WHAT EACH TEST CHECKS
+--------------------------------------------------------------------------------
+
+  verify-gift-map.mjs
+      Gift aliases (crown, gamepad, universe) and default power-up gift IDs
+      still exist in the catalog and are unique.
+
+  test-voting-skip.mjs
+      Host skip during category voting starts the winning category — never
+      jumps to nextQuestion / "mixed" by mistake.
+
+  test-answer-matching.mjs
+      Viewer answers resolve to the right choice: Arabic normalization
+      (alif/hamza/tashkeel), punctuation/emoji, Arabic-Indic digits,
+      "label + number" messages, and shuffled answer order.
+
+  test-persistence.mjs
+      All-time winners/donators survive corrupt JSON; live session checkpoint
+      keeps scores and clears in-flight answers.
+
+  test-host-trust.mjs
+      PIN, trust mode, hide-answers; gift auth token is NOT Symbol.for
+      (console spoof via global registry fails).
+
+
+--------------------------------------------------------------------------------
+FILE: scripts/verify-gift-map.mjs
+--------------------------------------------------------------------------------
+
+/**
+ * Live-verify default paid power-up gift IDs resolve in the catalog
+ * and that each action has a distinct gift binding.
+ */
+import {
+  ACTIVE_RULE_GIFT_IDS,
+  findGiftDef,
+  getGiftById,
+  migrateRuleGiftId,
+  resolveGiftId,
+  TIKTOK_GIFTS,
+} from "../src/utils/giftsConfig.js";
+import { DEFAULT_GIFT_TRIGGER_RULES } from "../src/utils/giftTriggerDefaults.js";
+
+const PAID_ACTIONS = [
+  "add_time",
+  "remove_wrong",
+  "fever_mode",
+  "fifty_fifty",
+  "reroll",
+  "override_vote",
+  "sabotage_blur",
+  "point_steal",
+  "play_airhorn",
+  "vip_sponsor",
+];
+
+let failed = 0;
+const fail = (msg) => {
+  console.error(`FAIL: ${msg}`);
+  failed += 1;
+};
+const ok = (msg) => console.log(`OK:   ${msg}`);
+
+// Alias resolution
+for (const [alias, expected] of [
+  ["crown", "little_crown"],
+  ["gamepad", "puppy_gamepad"],
+  ["universe", "tiktok_universe"],
+]) {
+  const got = resolveGiftId(alias);
+  if (got !== expected) fail(`alias ${alias} → ${got} (expected ${expected})`);
+  else ok(`alias ${alias} → ${expected}`);
+}
+
+// Defaults map to real catalog IDs + unique giftIds
+const seenGifts = new Set();
+for (const rule of DEFAULT_GIFT_TRIGGER_RULES) {
+  const id = migrateRuleGiftId(rule.giftId);
+  const def = findGiftDef(id);
+  if (!def) fail(`rule ${rule.id} giftId "${rule.giftId}" not in catalog`);
+  else ok(`rule ${rule.id} → ${def.id} (${def.name}) action=${rule.action}`);
+
+  if (seenGifts.has(id)) fail(`duplicate gift binding: ${id} (rule ${rule.id})`);
+  else seenGifts.add(id);
+
+  if (!PAID_ACTIONS.includes(rule.action)) fail(`unexpected action ${rule.action}`);
+}
+
+for (const action of PAID_ACTIONS) {
+  if (!DEFAULT_GIFT_TRIGGER_RULES.some((r) => r.action === action)) {
+    fail(`missing default rule for action ${action}`);
+  }
+}
+
+for (const id of ACTIVE_RULE_GIFT_IDS) {
+  if (!findGiftDef(id)) fail(`ACTIVE_RULE_GIFT_IDS missing catalog entry: ${id}`);
+}
+
+// getGiftById must not Rose-fallback for known aliases
+const vip = getGiftById("universe");
+if (vip?.id !== "tiktok_universe") fail(`getGiftById(universe) → ${vip?.id}`);
+else ok("getGiftById(universe) → tiktok_universe");
+
+console.log(`\nCatalog size: ${TIKTOK_GIFTS.length}`);
+console.log(failed ? `\n${failed} failure(s)` : "\nAll gift-map checks passed.");
+process.exit(failed ? 1 : 0);
+
+
+--------------------------------------------------------------------------------
+FILE: scripts/test-voting-skip.mjs
+--------------------------------------------------------------------------------
+
+#!/usr/bin/env node
+/**
+ * Automated regression for voting skip:
+ * host skip must start the tallied category, never jump to nextQuestion/mixed.
+ */
+import assert from "node:assert/strict";
+
+// Minimal harness mirroring useVotingSystem skip semantics
+function createVotingHarness() {
+  const log = [];
+  let phase = "idle";
+  let selectedCategory = "";
+  let questionListCategory = "";
+
+  const latestVotes = { current: {} };
+  const latestVotingOptions = { current: [] };
+  let endingLock = false;
+  let pendingCategory = null;
+  let startTimer = null;
+
+  const engine = {
+    get phase() { return phase; },
+    setPhase: (p) => { phase = p; log.push(`phase:${p}`); },
+    setSelectedCategory: (c) => { selectedCategory = c; },
+    setCurrentSpinCategory: (c) => {},
+    clearAllTimers: () => { log.push("clearAllTimers"); },
+    startGame: (cat) => {
+      selectedCategory = cat;
+      questionListCategory = cat;
+      phase = "question";
+      log.push(`startGame:${cat}`);
+    },
+    votingResultDelay: 50,
+    donorPicker: null,
+    donorPickerRef: { current: null },
+  };
+
+  function flushStartGame() {
+    if (startTimer) { clearTimeout(startTimer); startTimer = null; }
+    const cat = pendingCategory;
+    if (!cat) { endingLock = false; return; }
+    pendingCategory = null;
+    endingLock = false;
+    engine.startGame(cat);
+  }
+
+  function endVoting(forcedChoiceIdx = null, { hostSkip = false, immediate = false } = {}) {
+    if (endingLock) {
+      if (hostSkip || immediate) flushStartGame();
+      return;
+    }
+    const livePhase = engine.phase;
+    if (!hostSkip && livePhase && livePhase !== "voting") return;
+
+    endingLock = true;
+    engine.clearAllTimers();
+    if (startTimer) { clearTimeout(startTimer); startTimer = null; }
+
+    const options = latestVotingOptions.current;
+    const votes = latestVotes.current;
+    let winningIdx = 0;
+    if (forcedChoiceIdx != null && forcedChoiceIdx >= 0 && forcedChoiceIdx < options.length) {
+      winningIdx = forcedChoiceIdx;
+    } else {
+      const counts = Array(options.length).fill(0);
+      Object.values(votes).forEach((v) => { if (v.choice >= 0 && v.choice < options.length) counts[v.choice]++; });
+      let max = -1;
+      counts.forEach((c, i) => { if (c > max) { max = c; winningIdx = i; } });
+    }
+    const winningCategory = options[winningIdx] || options[0] || "mixed";
+    pendingCategory = winningCategory;
+    engine.setPhase("voting_result");
+
+    if (immediate || hostSkip) {
+      flushStartGame();
+      return;
+    }
+    startTimer = setTimeout(() => { startTimer = null; flushStartGame(); }, engine.votingResultDelay);
+  }
+
+  function skipVotingTimer() {
+    if (endingLock || pendingCategory) {
+      flushStartGame();
+      return;
+    }
+    endVoting(null, { hostSkip: true, immediate: true });
+  }
+
+  function skipTurn(uiPhase) {
+    // Mirrors useGameState.skipTurn
+    if (uiPhase === "voting" || uiPhase === "voting_result") {
+      skipVotingTimer();
+      return;
+    }
+    if (uiPhase === "question" || uiPhase === "reveal") {
+      log.push("BUG:evaluateRound");
+      return;
+    }
+    if (uiPhase === "result") {
+      log.push("BUG:nextQuestion");
+    }
+  }
+
+  return {
+    log,
+    engine,
+    get selectedCategory() { return selectedCategory; },
+    get questionListCategory() { return questionListCategory; },
+    get phase() { return phase; },
+    startVoting(options) {
+      endingLock = false;
+      pendingCategory = null;
+      latestVotingOptions.current = options;
+      latestVotes.current = {};
+      phase = "voting";
+      log.push("phase:voting");
+    },
+    castVote(userId, choice) {
+      latestVotes.current[userId] = { choice, name: userId };
+    },
+    skipTurn,
+    endVoting,
+  };
+}
+
+function test(name, fn) {
+  try {
+    fn();
+    console.log(`PASS  ${name}`);
+  } catch (err) {
+    console.error(`FAIL  ${name}`);
+    console.error(" ", err.message);
+    process.exitCode = 1;
+  }
+}
+
+test("host skip during voting starts leading category immediately", () => {
+  const h = createVotingHarness();
+  h.startVoting(["كرة القدم", "أنمي", "علوم", "تاريخ", "طبخ"]);
+  h.castVote("u1", 2); // علوم
+  h.castVote("u2", 2);
+  h.castVote("u3", 0);
+  h.skipTurn("voting");
+  assert.equal(h.phase, "question");
+  assert.equal(h.selectedCategory, "علوم");
+  assert.equal(h.questionListCategory, "علوم");
+  assert.ok(!h.log.includes("BUG:evaluateRound"));
+  assert.ok(!h.log.includes("BUG:nextQuestion"));
+  assert.ok(!h.log.some((l) => l === "startGame:mixed"));
+});
+
+test("double skip does not jump to nextQuestion", () => {
+  const h = createVotingHarness();
+  h.startVoting(["A", "B", "C", "D", "E"]);
+  h.castVote("u1", 1);
+  h.skipTurn("voting");
+  h.skipTurn("question"); // second press after game started — may evaluate, but category must stay
+  assert.equal(h.selectedCategory, "B");
+  // First action must not have been nextQuestion
+  assert.ok(h.log.includes("startGame:B"));
+});
+
+test("skip with zero votes picks option 1, not mixed", () => {
+  const h = createVotingHarness();
+  h.startVoting(["أول", "ثاني", "ثالث", "رابع", "خامس"]);
+  h.skipTurn("voting");
+  assert.equal(h.selectedCategory, "أول");
+  assert.notEqual(h.selectedCategory, "mixed");
+});
+
+test("stale engine.phase=question cannot block host skip", () => {
+  const h = createVotingHarness();
+  h.startVoting(["X", "Y", "Z", "W", "V"]);
+  h.castVote("u1", 3);
+  // Corrupt engine phase like the production bug
+  h.engine.setPhase("question");
+  // UI still shows voting
+  h.skipTurn("voting");
+  assert.equal(h.selectedCategory, "W");
+  assert.equal(h.phase, "question");
+  assert.ok(h.log.includes("startGame:W"));
+});
+
+if (!process.exitCode) {
+  console.log("\nAll voting-skip harness tests passed.");
+}
+
+
+--------------------------------------------------------------------------------
+FILE: scripts/test-answer-matching.mjs
+--------------------------------------------------------------------------------
+
+/**
+ * Regression: viewer answers must resolve to the correct choice.
+ * Covers Arabic normalization, punctuation/emoji, Arabic-Indic digits,
+ * "label + number" messages and shuffled answer order.
+ */
+import assert from "node:assert/strict";
+import { normalizeArabic, resolveAnswerIndex } from "../src/utils/ArabicUtils.js";
+
+let failed = 0;
+const check = (name, fn) => {
+  try {
+    fn();
+    console.log(`PASS  ${name}`);
+  } catch (err) {
+    console.error(`FAIL  ${name}`);
+    console.error(" ", err.message);
+    failed += 1;
+  }
+};
+
+// --- Normalization ---
+check("normalizes alif/hamza/teh-marbuta/alef-maksura", () => {
+  assert.equal(normalizeArabic("الأسد"), normalizeArabic("الاسد"));
+  assert.equal(normalizeArabic("الحمامة البيضاء"), normalizeArabic("الحمامه البيضاء"));
+  assert.equal(normalizeArabic("مصطفى"), normalizeArabic("مصطفي"));
+});
+
+check("strips tashkeel, punctuation and emoji", () => {
+  assert.equal(normalizeArabic("الْقَلْب"), "القلب");
+  assert.equal(normalizeArabic("1."), "1");
+  assert.equal(normalizeArabic("1) 👍"), "1");
+});
+
+// --- Text answers ---
+const choices = ["الرئتان", "الكبد", "الدماغ", "القلب"];
+
+check("exact choice text resolves", () => {
+  assert.equal(resolveAnswerIndex("القلب", choices), 3);
+});
+
+check("choice text with punctuation/emoji resolves", () => {
+  assert.equal(resolveAnswerIndex("القلب. 👍", choices), 3);
+  assert.equal(resolveAnswerIndex("الدماغ!", choices), 2);
+});
+
+check("choice text with extra words resolves", () => {
+  assert.equal(resolveAnswerIndex("الجواب القلب", choices), 3);
+});
+
+check("unrelated chatter is not an answer", () => {
+  assert.equal(resolveAnswerIndex("مرحبا كيف الحال", choices), null);
+  assert.equal(resolveAnswerIndex("", choices), null);
+});
+
+// --- Numeric answers ---
+check("bare and formatted numbers resolve", () => {
+  assert.equal(resolveAnswerIndex("1", choices), 0);
+  assert.equal(resolveAnswerIndex("4.", choices), 3);
+  assert.equal(resolveAnswerIndex("١", choices), 0); // Arabic-Indic
+  assert.equal(resolveAnswerIndex("٢)", choices), 1);
+});
+
+check("label + number resolves", () => {
+  assert.equal(resolveAnswerIndex("الجواب 3", choices), 2);
+});
+
+check("out-of-range number is not an answer", () => {
+  assert.equal(resolveAnswerIndex("9", choices), null);
+});
+
+// --- Shuffle awareness ---
+const shuffleMap = [2, 0, 3, 1]; // display order -> original index: [C, A, D, B]
+const shuffledChoices = ["A", "B", "C", "D"];
+
+check("number maps through shuffle to original index", () => {
+  assert.equal(resolveAnswerIndex("1", shuffledChoices, shuffleMap), 2); // display 1 = C
+  assert.equal(resolveAnswerIndex("3", shuffledChoices, shuffleMap), 3); // display 3 = D
+});
+
+check("text resolves regardless of shuffle", () => {
+  assert.equal(resolveAnswerIndex("C", shuffledChoices, shuffleMap), 2);
+  assert.equal(resolveAnswerIndex("ب", shuffledChoices, shuffleMap), null); // Arabic letter ≠ "B"
+});
+
+if (failed > 0) {
+  console.error(`\n${failed} answer-matching test(s) failed`);
+  process.exit(1);
+}
+console.log("\nAll answer-matching tests passed");
+
+
+--------------------------------------------------------------------------------
+FILE: scripts/test-persistence.mjs
+--------------------------------------------------------------------------------
+
+/**
+ * Unit checks for gamePersistence (all-time boards + live session).
+ */
+import { webcrypto } from "node:crypto";
+
+class MemoryStorage {
+  constructor() {
+    this.map = new Map();
+  }
+  getItem(key) {
+    return this.map.has(key) ? this.map.get(key) : null;
+  }
+  setItem(key, value) {
+    this.map.set(String(key), String(value));
+  }
+  removeItem(key) {
+    this.map.delete(String(key));
+  }
+  clear() {
+    this.map.clear();
+  }
+}
+
+globalThis.localStorage = new MemoryStorage();
+if (!globalThis.crypto) globalThis.crypto = webcrypto;
+
+const {
+  loadAllTimeWinners,
+  saveAllTimeWinners,
+  loadAllTimeDonators,
+  saveAllTimeDonators,
+  saveLiveSession,
+  loadLiveSession,
+  clearLiveSession,
+  playersForCheckpoint,
+  normalizeKingRecord,
+  SESSION_KEY,
+  WINNERS_KEY,
+  DONATORS_KEY,
+} = await import("../src/utils/gamePersistence.js");
+
+let failed = 0;
+const fail = (msg) => {
+  console.error(`FAIL: ${msg}`);
+  failed += 1;
+};
+const ok = (msg) => console.log(`OK:   ${msg}`);
+
+// Corrupt winners JSON must not throw
+localStorage.setItem(WINNERS_KEY, "{not-json");
+const winnersCorrupt = loadAllTimeWinners();
+if (!Array.isArray(winnersCorrupt) || winnersCorrupt.length !== 0) {
+  fail("corrupt winners should load as []");
+} else ok("corrupt winners → []");
+
+// Sync save winners + migrate wealth
+const saved = saveAllTimeWinners([
+  { id: "u1", name: "Ali", avatar: "a", wealth: 3 },
+  { id: "u2", name: "Sara", avatar: "b", wins: 5 },
+]);
+if (saved[0].id !== "u2" || saved[0].wins !== 5) fail("winners sort/wins wrong");
+else ok("winners sync save + sort by wins");
+
+const reloaded = loadAllTimeWinners();
+if (reloaded.length !== 2 || normalizeKingRecord(reloaded[1]).wins !== 3) {
+  fail("wealth→wins migration failed");
+} else ok("wealth→wins migration");
+
+// Corrupt donators
+localStorage.setItem(DONATORS_KEY, "null");
+if (loadAllTimeDonators().length !== 0) fail("null donators should be []");
+else ok("null donators → []");
+
+saveAllTimeDonators([{ id: "d1", name: "GiftKing", score: 100 }]);
+if (loadAllTimeDonators()[0]?.score !== 100) fail("donators save/load");
+else ok("donators sync save/load");
+
+// Session checkpoint
+clearLiveSession();
+const ladder = [
+  { id: "q1", q: "Q1?", a: "1", choices: ["1", "2"], difficulty: "easy" },
+  { id: "q2", q: "Q2?", a: "2", choices: ["1", "2"], difficulty: "easy" },
+];
+saveLiveSession({
+  qIdx: 1,
+  category: "mixed",
+  players: {
+    p1: { id: "p1", name: "Bot", score: 150, currentAnswer: "1", status: "answered", streak: 2 },
+  },
+  questionList: ladder,
+  winGoal: 2000,
+});
+
+const session = loadLiveSession();
+if (!session || session.qIdx !== 1) fail("session qIdx");
+else if (session.players.p1?.currentAnswer != null) fail("checkpoint should strip answers");
+else if (session.players.p1?.score !== 150) fail("checkpoint should keep score");
+else if (session.players.p1?.status !== "idle") fail("checkpoint status idle");
+else ok("live session checkpoint strips answers, keeps scores");
+
+const cleaned = playersForCheckpoint({ x: { id: "x", score: 10, currentAnswer: "3" } });
+if (cleaned.x.currentAnswer != null) fail("playersForCheckpoint");
+else ok("playersForCheckpoint helper");
+
+localStorage.setItem(SESSION_KEY, '{"version":999}');
+if (loadLiveSession() !== null) fail("bad session version should be null");
+else ok("reject unknown session version");
+
+clearLiveSession();
+if (loadLiveSession() !== null) fail("clearLiveSession");
+else ok("clearLiveSession");
+
+if (failed > 0) {
+  console.error(`\n${failed} persistence test(s) failed`);
+  process.exit(1);
+}
+console.log("\nAll persistence tests passed");
+
+
+--------------------------------------------------------------------------------
+FILE: scripts/test-host-trust.mjs
+--------------------------------------------------------------------------------
+
+/**
+ * Unit checks for hostTrust PIN / trust flags / gift auth token.
+ */
+class MemoryStorage {
+  constructor() {
+    this.map = new Map();
+  }
+  getItem(key) {
+    return this.map.has(key) ? this.map.get(key) : null;
+  }
+  setItem(key, value) {
+    this.map.set(String(key), String(value));
+  }
+  removeItem(key) {
+    this.map.delete(String(key));
+  }
+  clear() {
+    this.map.clear();
+  }
+}
+
+globalThis.localStorage = new MemoryStorage();
+
+const {
+  getStoredHostPin,
+  setStoredHostPin,
+  verifyHostPin,
+  isTrustModeEnabled,
+  setTrustModeEnabled,
+  shouldHideDebugAnswers,
+  setHideDebugAnswers,
+  getHostGiftAuthToken,
+  isAuthorizedGiftSubmit,
+} = await import("../src/utils/hostTrust.js");
+
+let failed = 0;
+const fail = (msg) => {
+  console.error(`FAIL: ${msg}`);
+  failed += 1;
+};
+const ok = (msg) => console.log(`OK:   ${msg}`);
+
+// No PIN → open
+if (!verifyHostPin("anything")) fail("empty PIN should allow");
+else ok("empty PIN allows entry");
+
+setStoredHostPin("1234");
+if (getStoredHostPin() !== "1234") fail("PIN store");
+else ok("PIN stored");
+if (!verifyHostPin("1234")) fail("correct PIN");
+else ok("correct PIN verifies");
+if (verifyHostPin("9999")) fail("wrong PIN should fail");
+else ok("wrong PIN rejected");
+
+setStoredHostPin("");
+if (getStoredHostPin() !== "") fail("clear PIN");
+else ok("PIN cleared");
+
+setTrustModeEnabled(true);
+if (!isTrustModeEnabled()) fail("trust on");
+else ok("trust mode on");
+if (!shouldHideDebugAnswers()) fail("trust forces hide answers");
+else ok("trust forces hide answers");
+
+setTrustModeEnabled(false);
+setHideDebugAnswers(true);
+if (!shouldHideDebugAnswers()) fail("manual hide answers");
+else ok("manual hide answers");
+setHideDebugAnswers(false);
+
+// Token must NOT be recoverable via Symbol.for
+const token = getHostGiftAuthToken();
+if (typeof token !== "symbol") fail("token is symbol");
+else ok("auth token is Symbol");
+
+if (Symbol.for("pirate.giftSubmitToken") === token) {
+  fail("token must not be Symbol.for (console-recoverable)");
+} else ok("token is not Symbol.for");
+
+if (!isAuthorizedGiftSubmit(token)) fail("valid token authorized");
+else ok("valid token authorized");
+if (isAuthorizedGiftSubmit(Symbol.for("pirate.giftSubmitToken"))) {
+  fail("Symbol.for spoof must not authorize");
+} else ok("Symbol.for spoof rejected");
+if (isAuthorizedGiftSubmit(undefined) || isAuthorizedGiftSubmit("secret")) {
+  fail("junk auth rejected");
+} else ok("junk auth rejected");
+
+if (failed > 0) {
+  console.error(`\n${failed} host-trust test(s) failed`);
+  process.exit(1);
+}
+console.log("\nAll host-trust tests passed");
+
+
+--------------------------------------------------------------------------------
+package.json SCRIPTS (related)
+--------------------------------------------------------------------------------
+
+  "verify:gifts": "node scripts/verify-gift-map.mjs",
+  "test:voting-skip": "node scripts/test-voting-skip.mjs",
+  "test:answers": "node scripts/test-answer-matching.mjs",
+  "test:persistence": "node scripts/test-persistence.mjs",
+  "test:trust": "node scripts/test-host-trust.mjs",
+  "test": "node scripts/verify-gift-map.mjs && node scripts/test-voting-skip.mjs && node scripts/test-answer-matching.mjs && node scripts/test-persistence.mjs && node scripts/test-host-trust.mjs"
+
+================================================================================
+END OF TESTS.txt
+================================================================================

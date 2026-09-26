@@ -1,0 +1,48 @@
+{
+  "name": "trivia-game",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "lint": "eslint .",
+    "preview": "vite preview",
+    "bridge": "node server.js",
+    "start:live": "node scripts/start-live.mjs",
+    "validate:questions": "node scripts/validate-questions.mjs",
+    "verify:gifts": "node scripts/verify-gift-map.mjs",
+    "trim:gifts": "node scripts/trim-gift-assets.mjs",
+    "test:voting-skip": "node scripts/test-voting-skip.mjs",
+    "test:persistence": "node scripts/test-persistence.mjs",
+    "test:trust": "node scripts/test-host-trust.mjs",
+    "test:answers": "node scripts/test-answer-matching.mjs",
+    "test:bridge": "node scripts/test-bridge-server.mjs",
+    "test": "node scripts/verify-gift-map.mjs && node scripts/test-voting-skip.mjs && node scripts/test-answer-matching.mjs && node scripts/test-persistence.mjs && node scripts/test-host-trust.mjs"
+  },
+  "dependencies": {
+    "express": "^5.2.1",
+    "framer-motion": "^12.38.0",
+    "i18next": "^26.0.5",
+    "i18next-browser-languagedetector": "^8.2.1",
+    "react": "^19.2.0",
+    "react-dom": "^19.2.0",
+    "react-i18next": "^17.0.4",
+    "react-router-dom": "^7.14.1",
+    "socket.io": "^4.8.3",
+    "socket.io-client": "^4.8.3",
+    "tiktok-live-connector": "^2.1.1-beta1",
+    "ws": "^8.18.3"
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.39.1",
+    "@types/react": "^19.2.7",
+    "@types/react-dom": "^19.2.3",
+    "@vitejs/plugin-react": "^5.1.1",
+    "eslint": "^9.39.1",
+    "eslint-plugin-react-hooks": "^7.0.1",
+    "eslint-plugin-react-refresh": "^0.4.24",
+    "globals": "^16.5.0",
+    "vite": "^7.3.1"
+  }
+}

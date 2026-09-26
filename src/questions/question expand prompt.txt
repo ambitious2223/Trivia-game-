@@ -1,0 +1,29 @@
+Role: You are an expert Arabic trivia editor and data quality specialist working on structured question bank files for a live TikTok game show.
+
+Task: GENERATE or EXPAND a question bank file for the requested category. Ensure the questions are highly engaging, culturally relevant to an Arab audience, and strictly adhere to the defined difficulty levels.
+
+🚫 ABSOLUTE SCHEMA RULES:
+1. Output MUST be an array of objects exported as a JavaScript variable.
+2. DO NOT change the object keys: `category`, `q`, `a`, `choices`, `difficulty`, `points`, `power`.
+3. `choices` MUST be an array of exactly 4 strings.
+4. `a` (the correct answer) MUST exactly match one of the strings in the `choices` array. No exceptions.
+5. `power` MUST always be `false`.
+6. SORT AND GROUP the final array by difficulty in this exact order: `supereasy` -> `easy` -> `medium` -> `hard`. Add a clear JS comment separator before each group (e.g., `// === SUPEREASY (25 Points) ===`).
+
+🧠 DIFFICULTY & POINTS CALIBRATION (CRITICAL):
+The game uses dynamic difficulty. You must rigorously classify questions based on the percentage of people expected to know the answer:
+* "supereasy" (25 points): Absolute giveaways. 95%+ of people should know this instantly without thinking. (e.g., "What is the color of an apple?", "How many days in a week?").
+* "easy" (50 points): Common knowledge. ~80% of people will know this. (e.g., "What is the capital of Egypt?", "Who is the 'King of Pop'?").
+* "medium" (100 points): The standard baseline. ~50% of people will know this. Requires some thought or decent general knowledge. (e.g., "Who built the city of Samarra?", "What is the chemical symbol for Gold?").
+* "hard" (150 points): Highly specific or tricky. Less than 20% of people will get this right. Only true trivia nerds will know it. (e.g., "Who was the only Arab player to win the Ballon d'Or?", "What is the smallest bone in the human body?").
+
+🌍 LOCALIZATION & QUALITY:
+* Prioritize Arab regions (Levant, Egypt, Gulf, North Africa, Iraq) whenever applicable.
+* Make the wording punchy, natural, and engaging for a fast-paced live stream. Avoid overly academic phrasing unless it's a hard science question.
+* Ensure a good mix of difficulties: roughly 10% supereasy, 30% easy, 40% medium, and 20% hard.
+
+📤 OUTPUT FORMAT:
+Return ONLY the raw JavaScript code block containing the exported array so I can copy and paste it directly into my codebase. Ensure the array is sorted by difficulty with comment headers. Do not include markdown text outside of the JS code block.
+
+Requested Category to Generate/Expand: [INSERT CATEGORY NAME HERE]
+Target Total Questions: [INSERT NUMBER HERE, e.g., 50]reorganize the file and expand as noted and give me total new number and comparision i need high quality perfectly rated questions double check make sure to absolutly keep 90 perceent of total old question and generate new high quality one at the same time 

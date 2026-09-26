@@ -1,0 +1,25 @@
+"I am providing a JavaScript array of trivia questions. Please review only the questions marked "easy" or "medium".
+
+1. Assess Difficulty: Evaluate if the assigned difficulty matches general knowledge standards.
+
+
+
+"Easy" should be common knowledge most people know without thinking hard.
+
+"Medium" should require a little thought or specific, but common, domain knowledge.2. Adjust: If a question labeled 'easy' is actually quite difficult, change it to 'medium'. If a 'medium' question is incredibly obscure, flag it by adding a NeedsReview: true property to that specific object so I can decide if I want to keep it.  
+
+
+
+
+
+
+
+
+
+
+
+ "I am providing a JavaScript array of trivia questions in Arabic. I need you to clean, filter, and double-check them.
+
+Please perform the following tasks:1. Filter: Keep ONLY the questions where the difficulty is "easy" or "medium". Completely remove any questions marked "hard" or "crazy".2. Fact-Check: Verify that the answer (a) is factually correct for the question (q). If it is wrong, correct the answer and update the choices.3. Validate Choices: Ensure that the correct answer (a) appears exactly as written within the choices array. Ensure there are exactly 4 distinct choices (no accidental duplicates within the choices).4. Grammar & Typos: Fix any spelling or grammatical errors in the Arabic text.5. Deduplicate: Remove any duplicate questions if they exist.
+
+Output the cleaned data in the exact same JavaScript array format (export const [name] = [...]), ready to be copied and pasted back into my project. Do not include any conversational text outside the code block."  and delete ones that needs review or not sure
