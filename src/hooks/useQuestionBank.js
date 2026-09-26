@@ -4,6 +4,8 @@ import {
   TRIVIA_QUESTIONS,
   getQuestionsByCategory,
   applyClassicPoints,
+  isPlayableQuestion,
+  sanitizeQuestionList,
   MAX_QUESTION_POINTS,
 } from "../utils/QuestionManager.js";
 
@@ -71,7 +73,14 @@ function loadSanitizedRoundFromStorage() {
       localStorage.removeItem("trivia_custom_bank");
       return [];
     }
-    return parsed.map((q, i) => withRoundScoring(q, q.ladderStep || i + 1));
+    // Auto-heal: a cached round with any question that is not 4-choice /
+    // well-formed is discarded so a fresh, clean round is generated.
+    const cleaned = sanitizeQuestionList(parsed);
+    if (cleaned.length < 15 || cleaned.length !== parsed.length) {
+      localStorage.removeItem("trivia_custom_bank");
+      return [];
+    }
+    return cleaned.map((q, i) => withRoundScoring(q, q.ladderStep || i + 1));
   } catch {
     localStorage.removeItem("trivia_custom_bank");
     return [];
@@ -118,9 +127,11 @@ export function useQuestionBank(addToast) {
   const loadAndFilterQuestions = useCallback((category) => {
     const safeCategory = typeof category === "string" ? category : "mixed";
 
-    const fullPool = (!safeCategory || safeCategory === "mixed") 
+    const source = (!safeCategory || safeCategory === "mixed") 
         ? TRIVIA_QUESTIONS 
         : getQuestionsByCategory(safeCategory);
+    // Defensive: never assemble a round from a malformed question
+    const fullPool = source.filter(isPlayableQuestion);
 
     let filteredPool = fullPool.filter(qItem => !usedQuestionIds.includes(qItem.id || qItem.q));
 
@@ -151,7 +162,8 @@ export function useQuestionBank(addToast) {
 
   const changeMidGameCategory = useCallback((newCategory) => {
     const safeCategory = typeof newCategory === "string" ? newCategory : "mixed";
-    const fullPool = (safeCategory === "mixed") ? TRIVIA_QUESTIONS : getQuestionsByCategory(safeCategory);
+    const fullPool = (safeCategory === "mixed" ? TRIVIA_QUESTIONS : getQuestionsByCategory(safeCategory))
+      .filter(isPlayableQuestion);
     let filteredPool = fullPool.filter(qItem => !usedQuestionIds.includes(qItem.id || qItem.q));
 
     if (filteredPool.length < 15) {

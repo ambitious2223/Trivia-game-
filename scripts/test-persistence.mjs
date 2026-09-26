@@ -81,8 +81,8 @@ else ok("donators sync save/load");
 // Session checkpoint
 clearLiveSession();
 const ladder = [
-  { id: "q1", q: "Q1?", a: "1", choices: ["1", "2"], difficulty: "easy" },
-  { id: "q2", q: "Q2?", a: "2", choices: ["1", "2"], difficulty: "easy" },
+  { id: "q1", q: "Q1?", a: "1", choices: ["1", "2", "3", "4"], difficulty: "easy" },
+  { id: "q2", q: "Q2?", a: "2", choices: ["1", "2", "3", "4"], difficulty: "easy" },
 ];
 saveLiveSession({
   qIdx: 1,
@@ -160,6 +160,17 @@ else ok("donators capped to MAX_TRACKED_DONATORS");
 localStorage.setItem(SESSION_KEY, '{"version":999}');
 if (loadLiveSession() !== null) fail("bad session version should be null");
 else ok("reject unknown session version");
+
+// Auto-heal: a checkpoint with a non-4-choice question must be rejected
+localStorage.setItem(SESSION_KEY, JSON.stringify({
+  version: 1,
+  qIdx: 0,
+  category: "mixed",
+  players: {},
+  questionList: [{ id: "q1", q: "Q?", a: "1", choices: ["1", "2", "3"] }],
+}));
+if (loadLiveSession() !== null) fail("session with 3-choice question should be rejected");
+else ok("reject checkpoint with malformed question");
 
 clearLiveSession();
 if (loadLiveSession() !== null) fail("clearLiveSession");

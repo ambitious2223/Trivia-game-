@@ -3,13 +3,21 @@
  * Validate the trivia bank after content updates.
  * Usage: npm run validate:questions
  */
-import { auditQuestionBank, LADDER_DIFFICULTIES } from "../src/utils/QuestionManager.js";
+import { auditQuestionBank, LADDER_DIFFICULTIES, TRIVIA_QUESTIONS, isPlayableQuestion } from "../src/utils/QuestionManager.js";
 
 const report = auditQuestionBank();
-const blocking = report.issues.filter((i) =>
-  ["answer_not_in_choices", "bad_choices", "empty_question"].includes(i.type)
+// The board is a fixed 2×2 grid — anything without exactly 4 valid choices is blocking.
+const malformed = TRIVIA_QUESTIONS.filter((q) => !isPlayableQuestion(q)).map((q) => ({
+  type: "not_four_choices",
+  id: q.id,
+  category: q.category,
+  choices: q.choices,
+}));
+const allIssues = [...report.issues, ...malformed];
+const blocking = allIssues.filter((i) =>
+  ["answer_not_in_choices", "bad_choices", "empty_question", "not_four_choices"].includes(i.type)
 );
-const warnings = report.issues.filter((i) => !blocking.includes(i));
+const warnings = allIssues.filter((i) => !blocking.includes(i));
 
 console.log("=== Question bank audit ===");
 console.log(`Sources:    ${report.sourceCount}`);

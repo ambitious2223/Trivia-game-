@@ -143,6 +143,22 @@ function normalizeQuestion(q, index) {
 
 const DIFFICULTY_RANK = { easy: 1, medium: 2, hard: 3, crazy: 4 };
 
+/** The board renders a fixed 2×2 grid and power-ups assume 4 options. */
+export const REQUIRED_CHOICES = 4;
+
+/** A question is playable only with exactly REQUIRED_CHOICES non-empty choices. */
+export function isPlayableQuestion(q) {
+  if (!q || !q.q || q.a == null || String(q.a).trim() === "") return false;
+  if (!Array.isArray(q.choices) || q.choices.length !== REQUIRED_CHOICES) return false;
+  return q.choices.every((c) => String(c ?? "").trim() !== "");
+}
+
+/** Drop unusable questions so they never reach the board (auto-heal). */
+export function sanitizeQuestionList(list) {
+  if (!Array.isArray(list)) return [];
+  return list.filter(isPlayableQuestion);
+}
+
 function buildTriviaQuestions() {
   const byText = new Map();
   for (const source of QUESTION_SOURCES) {

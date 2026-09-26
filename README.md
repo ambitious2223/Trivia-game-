@@ -109,6 +109,7 @@ scoring). The host can skip any phase from the debug panel.
 | `npm run start:live`          | Start bridge **and** Vite together                  |
 | `npm test`                    | Full automated suite (all checks below)             |
 | `npm run test:answers`        | Answer-matching / scoring regressions              |
+| `npm run test:questions`      | Question-bank integrity (every question is 4-choice) |
 | `npm run test:voting-skip`    | Category-voting skip regression                     |
 | `npm run test:persistence`    | Winners / donators / session checkpoint             |
 | `npm run test:trust`          | Host PIN, trust mode, gift auth token               |

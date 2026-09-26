@@ -17,8 +17,9 @@
     "test:persistence": "node scripts/test-persistence.mjs",
     "test:trust": "node scripts/test-host-trust.mjs",
     "test:answers": "node scripts/test-answer-matching.mjs",
+    "test:questions": "node scripts/test-question-integrity.mjs",
     "test:bridge": "node scripts/test-bridge-server.mjs",
-    "test": "node scripts/verify-gift-map.mjs && node scripts/test-voting-skip.mjs && node scripts/test-answer-matching.mjs && node scripts/test-persistence.mjs && node scripts/test-host-trust.mjs"
+    "test": "node scripts/verify-gift-map.mjs && node scripts/test-voting-skip.mjs && node scripts/test-answer-matching.mjs && node scripts/test-question-integrity.mjs && node scripts/test-persistence.mjs && node scripts/test-host-trust.mjs"
   },
   "dependencies": {
     "express": "^5.2.1",

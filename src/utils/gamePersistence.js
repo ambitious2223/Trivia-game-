@@ -198,6 +198,11 @@ export function loadLiveSession() {
   if (data.version !== SESSION_VERSION) return null;
   if (!Array.isArray(data.questionList) || data.questionList.length === 0) return null;
   if (typeof data.qIdx !== "number" || data.qIdx < 0) return null;
+  // Auto-heal: reject a checkpoint whose questions are malformed (e.g. an old
+  // build cached a 3-choice question) so we never resume onto a broken board.
+  if (!data.questionList.every((q) => q && Array.isArray(q.choices) && q.choices.length === 4)) {
+    return null;
+  }
   return {
     ...data,
     qIdx: Math.min(data.qIdx, data.questionList.length - 1),
