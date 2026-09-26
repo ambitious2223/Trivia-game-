@@ -2,7 +2,7 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { SOUNDS, playSound, stopMusic, playEpicWinSound } from "../utils/Sounds";
 import { stopSpeaking } from "../utils/TextToSpeech";
-import { normalizeArabic, resolveAnswerIndex, calculateSpeedBonus } from "../utils/ArabicUtils";
+import { isPlayerAnswerCorrect, calculateSpeedBonus } from "../utils/ArabicUtils";
 import { getPointsForDifficulty } from "../utils/QuestionManager.js";
 import {
   loadAllTimeWinners,
@@ -139,14 +139,7 @@ export function usePlayers(engineRef, addToast) {
           return;
         }
 
-        const choices = engine.q?.choices || [];
-        const correctText = normalizeArabic(engine.q?.a || "");
-        let correctIndex = choices.findIndex((c) => normalizeArabic(c || "") === correctText);
-        if (correctIndex < 0) correctIndex = choices.indexOf(engine.q?.a);
-        const resolvedIndex = resolveAnswerIndex(p.currentAnswer, choices, engine.shuffleMap);
-        const isCorrect = correctIndex >= 0
-          ? resolvedIndex === correctIndex
-          : normalizeArabic(p.currentAnswer) === correctText;
+        const isCorrect = isPlayerAnswerCorrect(p.currentAnswer, engine.q, engine.shuffleMap);
 
         if (isCorrect) {
           const totalTime = engine.questionDuration || 15;

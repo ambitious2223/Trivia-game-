@@ -90,6 +90,36 @@ export const resolveAnswerIndex = (rawAnswer, choices = [], shuffleMap = null) =
   return null;
 };
 
+/**
+ * Index of the correct choice inside `question.choices`, tolerant to
+ * whitespace / diacritic differences between `question.a` and the choice text.
+ * Returns -1 when the answer is not present in the choices.
+ */
+export const getCorrectChoiceIndex = (question) => {
+  const choices = Array.isArray(question?.choices) ? question.choices : [];
+  if (!choices.length) return -1;
+  const target = normalizeArabic(question?.a ?? "");
+  if (target) {
+    const idx = choices.findIndex((c) => normalizeArabic(c) === target);
+    if (idx >= 0) return idx;
+  }
+  return choices.indexOf(question?.a);
+};
+
+/**
+ * Single source of truth for "did this player answer correctly?".
+ * Works for text answers, option numbers (shuffle-aware) and questions whose
+ * answer string is missing from the choices (falls back to text compare).
+ */
+export const isPlayerAnswerCorrect = (rawAnswer, question, shuffleMap = null) => {
+  const choices = Array.isArray(question?.choices) ? question.choices : [];
+  const correctIndex = getCorrectChoiceIndex(question);
+  if (correctIndex < 0) {
+    return normalizeArabic(rawAnswer) === normalizeArabic(question?.a ?? "");
+  }
+  return resolveAnswerIndex(rawAnswer, choices, shuffleMap) === correctIndex;
+};
+
 export const calculateSpeedBonus = (timeLeft, totalTime) => {
   const ratio = timeLeft / totalTime;
   if (ratio > 0.8) return 2; // 2x points if answered in first 20% of time

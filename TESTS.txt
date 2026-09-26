@@ -346,7 +346,7 @@ FILE: scripts/test-answer-matching.mjs
  * "label + number" messages and shuffled answer order.
  */
 import assert from "node:assert/strict";
-import { normalizeArabic, resolveAnswerIndex } from "../src/utils/ArabicUtils.js";
+import { normalizeArabic, resolveAnswerIndex, isPlayerAnswerCorrect } from "../src/utils/ArabicUtils.js";
 
 let failed = 0;
 const check = (name, fn) => {
@@ -422,6 +422,30 @@ check("number maps through shuffle to original index", () => {
 check("text resolves regardless of shuffle", () => {
   assert.equal(resolveAnswerIndex("C", shuffledChoices, shuffleMap), 2);
   assert.equal(resolveAnswerIndex("ب", shuffledChoices, shuffleMap), null); // Arabic letter ≠ "B"
+});
+
+// --- End-to-end scoring decision ---
+const question = { a: "القلب", choices, };
+
+check("text and number both score correct", () => {
+  assert.equal(isPlayerAnswerCorrect("القلب", question), true);
+  assert.equal(isPlayerAnswerCorrect("القلب. 👍", question), true);
+  assert.equal(isPlayerAnswerCorrect("4", question), true);
+  assert.equal(isPlayerAnswerCorrect("1", question), false); // الرئتان
+});
+
+check("scoring respects shuffle", () => {
+  const shuffledQuestion = { a: "C", choices: shuffledChoices };
+  // display order [C, A, D, B]: number 1 is the correct one
+  assert.equal(isPlayerAnswerCorrect("1", shuffledQuestion, shuffleMap), true);
+  assert.equal(isPlayerAnswerCorrect("2", shuffledQuestion, shuffleMap), false);
+  assert.equal(isPlayerAnswerCorrect("C", shuffledQuestion, shuffleMap), true);
+});
+
+check("answer text not exactly in choices falls back to text compare", () => {
+  const odd = { a: "الصواب", choices: ["خطأ", "غلط"] };
+  assert.equal(isPlayerAnswerCorrect("الصواب", odd), true);
+  assert.equal(isPlayerAnswerCorrect("خطأ", odd), false);
 });
 
 if (failed > 0) {
