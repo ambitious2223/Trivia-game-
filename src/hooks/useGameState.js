@@ -10,6 +10,7 @@ import {
   loadLiveSession,
   clearLiveSession,
   playersForCheckpoint,
+  prunePlayers,
 } from "../utils/gamePersistence";
 import { useTikTokSockets } from "./useTikTokSockets";
 import { speakQuestion, stopSpeaking } from "../utils/TextToSpeech"; 
@@ -244,12 +245,14 @@ export function useGameState() {
         Object.keys(prev).forEach(k => { 
             reset[k] = { ...prev[k], currentAnswer: null, status: "idle", speedBonus: 1 }; 
         });
+        // Drop 0-score spectators so the player map stays bounded on long streams
+        const trimmed = prunePlayers(reset);
         // Refresh checkpoint at the start of the next question (same scores)
         if (questionBank.questionList?.length) {
           saveLiveSession({
             qIdx: nextIdx,
             category: currentCategory || questionBank.selectedCategory || "mixed",
-            players: reset,
+            players: trimmed,
             questionList: questionBank.questionList,
             winGoal,
             sessionLikes: likesHook.sessionLikes,
@@ -260,7 +263,7 @@ export function useGameState() {
             gateStep: null,
           });
         }
-        return reset; 
+        return trimmed; 
     });
     setPhase("question"); playQuestionMusic();
   }, [questionBank, playersHook, likesHook, currentCategory, winGoal]);
@@ -298,19 +301,23 @@ export function useGameState() {
     playQuestionMusic(); 
   }, [timersHook, questionBank, playersHook, likesHook, winGoal]);
 
-  // Persist likes progress while the checkpoint gate is open
+  // Persist likes progress while the checkpoint gate is open.
+  // Debounced: player/like churn can fire this many times a second.
   useEffect(() => {
     if (phase !== "likes_gate") return;
     const list = questionBank.questionList;
     if (!list?.length) return;
-    saveLiveSession({
-      qIdx: questionBank.qIdx,
-      category: currentCategory || questionBank.selectedCategory || "mixed",
-      players: playersHook.players,
-      questionList: list,
-      winGoal,
-      ...getLikesSnapshot(),
-    });
+    const t = setTimeout(() => {
+      saveLiveSession({
+        qIdx: questionBank.qIdx,
+        category: currentCategory || questionBank.selectedCategory || "mixed",
+        players: playersHook.players,
+        questionList: list,
+        winGoal,
+        ...getLikesSnapshot(),
+      });
+    }, 300);
+    return () => clearTimeout(t);
   }, [
     phase,
     likesHook.sessionLikes,

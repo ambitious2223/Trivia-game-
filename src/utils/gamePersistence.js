@@ -71,6 +71,8 @@ export function clearAllTimeWinners() {
 }
 
 /** Donators: { id, name, avatar, score } */
+export const MAX_TRACKED_DONATORS = 100;
+
 export function normalizeDonatorRecord(d) {
   if (!d || typeof d !== "object") return null;
   const id = d.id != null ? String(d.id) : "";
@@ -96,7 +98,8 @@ export function saveAllTimeDonators(list) {
   const safe = (list || [])
     .map(normalizeDonatorRecord)
     .filter(Boolean)
-    .sort((a, b) => b.score - a.score);
+    .sort((a, b) => b.score - a.score)
+    .slice(0, MAX_TRACKED_DONATORS);
   writeJSON(DONATORS_KEY, safe);
   return safe;
 }
@@ -132,6 +135,31 @@ export function playersForCheckpoint(players) {
   return out;
 }
 
+/** Live leaderboard cap — keeps memory and localStorage bounded on long streams. */
+export const MAX_TRACKED_PLAYERS = 200;
+
+/**
+ * Keep only players worth carrying forward: anyone with points, plus anyone
+ * who answered the current question. Result is capped to the top `cap` by score
+ * (current answerers are always kept). Prevents the player map from growing
+ * without bound over a long stream.
+ */
+export function prunePlayers(players, { cap = MAX_TRACKED_PLAYERS } = {}) {
+  const keep = [];
+  const answerers = [];
+  Object.keys(players || {}).forEach((id) => {
+    const p = players[id];
+    if (!p) return;
+    if (p.currentAnswer) answerers.push([id, p]);
+    else if ((Number(p.score) || 0) > 0) keep.push([id, p]);
+  });
+  keep.sort((a, b) => (Number(b[1].score) || 0) - (Number(a[1].score) || 0));
+  const out = {};
+  keep.slice(0, Math.max(0, cap)).forEach(([id, p]) => { out[id] = p; });
+  answerers.forEach(([id, p]) => { out[id] = p; });
+  return out;
+}
+
 /**
  * Checkpoint after a question finishes (scores locked, ready for next index).
  * questionList is stored so the same ladder continues after refresh.
@@ -149,7 +177,7 @@ export function saveLiveSession(snapshot) {
     savedAt: Date.now(),
     qIdx,
     category: snapshot.category || "mixed",
-    players: playersForCheckpoint(snapshot.players),
+    players: prunePlayers(playersForCheckpoint(snapshot.players)),
     questionList: snapshot.questionList,
     winGoal: Number(snapshot.winGoal) || 2000,
     sessionLikes: Math.max(0, Number(snapshot.sessionLikes) || 0),
