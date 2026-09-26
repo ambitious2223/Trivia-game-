@@ -1,5 +1,5 @@
 // src/hooks/useQuestionBank.js
-import { useState, useEffect, useCallback, useRef } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
 import {
   TRIVIA_QUESTIONS,
   getQuestionsByCategory,
@@ -103,13 +103,8 @@ export function useQuestionBank(addToast) {
   }, [questionList]);
 
   const rawQ = questionList[qIdx];
-  const rawQRef = useRef(null);
-  const memoizedQRef = useRef(null);
-  if (rawQ !== rawQRef.current) {
-    rawQRef.current = rawQ;
-    memoizedQRef.current = rawQ ? applyClassicPoints(rawQ) : rawQ;
-  }
-  const q = memoizedQRef.current;
+  // Re-derive the scored question only when the raw question changes
+  const q = useMemo(() => (rawQ ? applyClassicPoints(rawQ) : rawQ), [rawQ]);
   const isCrazy = q?.difficulty === "crazy";
 
   const advanceToNextQuestion = useCallback(() => {

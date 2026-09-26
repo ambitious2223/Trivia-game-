@@ -3,7 +3,7 @@ import { useState, useEffect, useRef, useCallback } from "react";
 import { SOUNDS, playSound, stopMusic } from "../utils/Sounds";
 import { stopSpeaking } from "../utils/TextToSpeech";
 
-export function useGameTimers(engineRef, addToast, phase = "idle") {
+export function useGameTimers(engineRef, addToast, phase = "idle", isCrazy = false) {
   const [questionDuration, setQuestionDuration] = useState(() => Number(localStorage.getItem("trivia_q_dur")) || 15);
   const [resultDuration, setResultDuration] = useState(() => Number(localStorage.getItem("trivia_res_dur")) || 5);
   const [votingDuration, setVotingDuration] = useState(() => Number(localStorage.getItem("trivia_vote_dur")) || 30);
@@ -15,6 +15,7 @@ export function useGameTimers(engineRef, addToast, phase = "idle") {
   const [timeLeft, setTimeLeft] = useState(questionDuration);
   const [votingTimeLeft, setVotingTimeLeft] = useState(votingDuration);
   const [isPaused, setIsPaused] = useState(false);
+  const [prevPhase, setPrevPhase] = useState(phase);
 
   const timerRef = useRef(null);
   const graceTimerRef = useRef(null);
@@ -37,6 +38,17 @@ export function useGameTimers(engineRef, addToast, phase = "idle") {
   useEffect(() => {
     phaseRef.current = phase || "idle";
   }, [phase]);
+
+  // Reset the active countdown when the phase changes (React "adjust state when
+  // a prop changes" pattern — replaces a sync setState inside the effects).
+  if (phase !== prevPhase) {
+    setPrevPhase(phase);
+    if (phase === "question") {
+      setTimeLeft(isCrazy ? Math.max(5, questionDuration - 5) : questionDuration);
+    } else if (phase === "voting") {
+      setVotingTimeLeft(votingDuration);
+    }
+  }
 
   const trackTimeout = useCallback((fn, ms) => {
     const id = setTimeout(() => {
@@ -63,8 +75,6 @@ export function useGameTimers(engineRef, addToast, phase = "idle") {
   // Voting Interval — keyed off React `phase`, not engineRef
   useEffect(() => {
     if (phase !== "voting") return;
-
-    setVotingTimeLeft(votingDuration);
 
     votingTimerRef.current = setInterval(() => {
       if (isPaused) return;
@@ -97,9 +107,6 @@ export function useGameTimers(engineRef, addToast, phase = "idle") {
   // Question Interval
   useEffect(() => {
     if (phase !== "question") return;
-
-    const maxT = getEngine().isCrazy ? Math.max(5, questionDuration - 5) : questionDuration;
-    setTimeLeft(maxT);
 
     timerRef.current = setInterval(() => {
       if (isPaused) return;
@@ -142,7 +149,7 @@ export function useGameTimers(engineRef, addToast, phase = "idle") {
       if (timerRef.current) clearInterval(timerRef.current);
       timerRef.current = null;
     };
-  }, [phase, getEngine().isCrazy, addToast, questionDuration, isPaused, revealDelay, evalDelay, getEngine]);
+  }, [phase, isCrazy, addToast, questionDuration, isPaused, revealDelay, evalDelay, getEngine]);
 
   return {
     questionDuration, setQuestionDuration, resultDuration, setResultDuration,

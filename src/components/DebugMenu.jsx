@@ -63,9 +63,6 @@ export default function DebugMenu({
   const [panelUnlocked, setPanelUnlocked] = useState(() => !getStoredHostPin() || !isTrustModeEnabled());
   const [showKingsHall, setShowKingsHall] = useState(false);
 
-  useEffect(() => {
-    setTempGoal(currentGoal || 2000);
-  }, [currentGoal]);
   const [tempQDur, setTempQDur] = useState(questionDuration || 15);
   const [tempRDur, setTempRDur] = useState(resultDuration || 5);
   const [tempVoteDur, setTempVoteDur] = useState(votingDuration || 30);
@@ -78,12 +75,21 @@ export default function DebugMenu({
   const [tikfinityHost, setTikfinityHost] = useState(connectionStatus.tikfinityHost || "127.0.0.1");
   const [tikfinityPort, setTikfinityPort] = useState(connectionStatus.tikfinityPort || 21213);
 
-  useEffect(() => {
+  // React "adjust state when a prop changes" pattern (avoids sync effects).
+  const [prevGoal, setPrevGoal] = useState(currentGoal);
+  if (currentGoal !== prevGoal) {
+    setPrevGoal(currentGoal);
+    setTempGoal(currentGoal || 2000);
+  }
+
+  const [prevConn, setPrevConn] = useState(connectionStatus);
+  if (connectionStatus !== prevConn) {
+    setPrevConn(connectionStatus);
     if (connectionStatus.username) setTikTokUsername(connectionStatus.username);
     if (connectionStatus.mode) setConnMode(connectionStatus.mode);
     if (connectionStatus.tikfinityHost) setTikfinityHost(connectionStatus.tikfinityHost);
     if (connectionStatus.tikfinityPort) setTikfinityPort(connectionStatus.tikfinityPort);
-  }, [connectionStatus.username, connectionStatus.mode, connectionStatus.tikfinityHost, connectionStatus.tikfinityPort]);
+  }
 
   const [position, setPosition] = useState({ x: 10, y: 10 });
   const [isDragging, setIsDragging] = useState(false);

@@ -8,22 +8,26 @@ export default function CategoryWheel({ categories, isSpinning, selectedCategory
   const colors = ["#e74c3c", "#3498db", "#9b59b6", "#2ecc71", "#f39c12", "#16a085", "#d35400", "#2980b9"];
   const sliceAngle = 360 / categories.length;
 
-  useEffect(() => {
+  // Adjust rotation when the spin/selection props change (no sync effect needed).
+  const [prevSpin, setPrevSpin] = useState(isSpinning);
+  const [prevSelected, setPrevSelected] = useState(selectedCategory);
+  if (isSpinning !== prevSpin || selectedCategory !== prevSelected) {
+    setPrevSpin(isSpinning);
+    setPrevSelected(selectedCategory);
     if (isSpinning) {
       // Rapid fake spins while the engine decides
-      setRotation(prev => prev + 1800); 
+      setRotation(prev => prev + 1800);
     } else if (selectedCategory) {
       // The engine picked a winner! Calculate exact landing angle for smooth deceleration
       const index = categories.indexOf(selectedCategory);
       const sliceCenter = (index * sliceAngle) + (sliceAngle / 2);
-      
       setRotation(prev => {
         const currentMod = prev % 360;
         // Snap to nearest 360, add 2 extra slowdown spins, and offset by slice center
         return prev - currentMod + 720 + (360 - sliceCenter);
       });
     }
-  }, [isSpinning, selectedCategory, categories, sliceAngle]);
+  }
 
   // Optional tick sound
   useEffect(() => {

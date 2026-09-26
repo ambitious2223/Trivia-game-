@@ -99,8 +99,7 @@ export function useVotingSystem(engineRef, addToast) {
     endingLockRef.current = false;
     pendingCategoryRef.current = null;
 
-    if (engine.isGameOverRef) engine.isGameOverRef.current = false;
-    if (engine.isEvaluatingRef) engine.isEvaluatingRef.current = false;
+    if (engine.resetGameGuards) engine.resetGameGuards();
 
     if (engine.setQIdx) engine.setQIdx(0);
     if (engine.setPlayers) engine.setPlayers({});
@@ -151,7 +150,6 @@ export function useVotingSystem(engineRef, addToast) {
     const wasDictatorMode = !!dictator;
 
     if (engine.setDonorPicker) engine.setDonorPicker(null);
-    if (engine.donorPickerRef) engine.donorPickerRef.current = null;
 
     const currentVotes = latestVotes.current;
     const currentOptions = latestVotingOptions.current || [];

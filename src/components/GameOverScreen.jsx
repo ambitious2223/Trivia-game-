@@ -1,5 +1,5 @@
 // src/components/GameOverScreen.jsx
-import React, { useState, useEffect, useMemo } from "react";
+import React, { useState, useEffect } from "react";
 import { motion } from "framer-motion";
 import { podiumItemAnim } from "../animations/podiumAnimations"; 
 
@@ -10,25 +10,26 @@ function formatScoreCompact(score) {
   return score.toString();
 }
 
-const ExtremeConfetti = () => {
-  const particles = useMemo(() => {
-    const colors = ["#ffd700", "#ff3333", "#2ecc71", "#3498db", "#e056fd", "#ffffff", "#ff9ff3"];
-    return Array.from({ length: 150 }).map((_, i) => ({
-      id: i,
-      color: colors[Math.floor(Math.random() * colors.length)],
-      xOffset: (Math.random() - 0.5) * window.innerWidth * 1.5, 
-      yOffset: window.innerHeight + Math.random() * 500, 
-      delay: Math.random() * 0.4, 
-      duration: 2 + Math.random() * 3,
-      size: Math.random() > 0.5 ? 12 : 8,
-      isCircle: Math.random() > 0.5,
-      rotate: Math.random() * 720,
-    }));
-  }, []);
+// Randomized confetti layout — created once outside render so it stays pure.
+const PARTICLES = typeof window === "undefined" ? [] : (() => {
+  const colors = ["#ffd700", "#ff3333", "#2ecc71", "#3498db", "#e056fd", "#ffffff", "#ff9ff3"];
+  return Array.from({ length: 150 }).map((_, i) => ({
+    id: i,
+    color: colors[Math.floor(Math.random() * colors.length)],
+    xOffset: (Math.random() - 0.5) * window.innerWidth * 1.5,
+    yOffset: window.innerHeight + Math.random() * 500,
+    delay: Math.random() * 0.4,
+    duration: 2 + Math.random() * 3,
+    size: Math.random() > 0.5 ? 12 : 8,
+    isCircle: Math.random() > 0.5,
+    rotate: Math.random() * 720,
+  }));
+})();
 
+const ExtremeConfetti = () => {
   return (
     <div style={{ position: 'fixed', top: -50, left: '50%', zIndex: 9999, pointerEvents: 'none' }}>
-      {particles.map(p => (
+      {PARTICLES.map(p => (
         <motion.div
           key={p.id}
           initial={{ x: 0, y: 0, opacity: 1, scale: 0 }}

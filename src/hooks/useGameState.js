@@ -77,7 +77,7 @@ export function useGameState() {
   
   const questionBank = useQuestionBank(addToast);
   // Pass React `phase` so timers don't depend on a stale engineRef snapshot
-  const timersHook = useGameTimers(engineRef, addToast, phase);
+  const timersHook = useGameTimers(engineRef, addToast, phase, questionBank.isCrazy);
   const playersHook = usePlayers(engineRef, addToast);
   const votingHook = useVotingSystem(engineRef, addToast);
   const giftsHook = useTikTokGifts(engineRef, donatorsHook, addToast);
@@ -228,7 +228,7 @@ export function useGameState() {
     timersHook.setTimeLeft(prev => prev + seconds);
   }, [timersHook]);
 
-  function nextQuestion() {
+  const nextQuestion = useCallback(() => {
     isEvaluatingRef.current = false; setShowAnswer(false); 
     setFeverMode(false);
     const finishedIdx = questionBank.qIdx;
@@ -263,9 +263,9 @@ export function useGameState() {
         return reset; 
     });
     setPhase("question"); playQuestionMusic();
-  }
+  }, [questionBank, playersHook, likesHook, currentCategory, winGoal]);
 
-  function startGame(chosenCategory = "mixed") {
+  const startGame = useCallback((chosenCategory = "mixed") => {
     timersHook.clearAllTimers(); 
     isGameOverRef.current = false; isEvaluatingRef.current = false; setShowAnswer(false); 
     setFeverMode(false); setDragonActive(false); setWheelSpinning(false);
@@ -296,7 +296,7 @@ export function useGameState() {
     setPhase("question"); 
     // Only start question bed after a real game start (gated by unlockAudio)
     playQuestionMusic(); 
-  }
+  }, [timersHook, questionBank, playersHook, likesHook, winGoal]);
 
   // Persist likes progress while the checkpoint gate is open
   useEffect(() => {
@@ -402,7 +402,7 @@ export function useGameState() {
         startGame(picked);
       }, resultDelay);
     }, 2500);
-  }, [questionBank, timersHook.wheelResultDelay]);
+  }, [questionBank, timersHook.wheelResultDelay, startGame]);
 
   // Skip only advances the current phase's timer — never jumps voting → evaluateRound
   const skipTurn = useCallback(() => {
@@ -461,7 +461,7 @@ export function useGameState() {
         "mixed";
       startGame(cat);
     }
-  }, [phase, votingHook, playersHook, timersHook, questionBank, currentCategory, startGame, likesHook, startLikesGate]);
+  }, [phase, votingHook, playersHook, timersHook, questionBank, currentCategory, startGame, likesHook, startLikesGate, nextQuestion]);
 
   // 3. Engine Bridge Sync
   engineRef.current = { 
@@ -475,6 +475,7 @@ export function useGameState() {
       resultDuration: timersHook.resultDuration, startVoting: votingHook.startVoting, 
       setIsBlurred, blurTimer, setVipSponsor, vipTimer, 
       donorPickerRef, donorPicker, setDonorPicker, stopSpeaking, isGameOverRef, isEvaluatingRef, 
+      resetGameGuards: () => { isGameOverRef.current = false; isEvaluatingRef.current = false; },
       isCrazy: questionBank.isCrazy, 
       nextQuestion, donatorsHook, startGame, changeMidGameCategory: questionBank.changeMidGameCategory,
       clearAllTimers: timersHook.clearAllTimers,
@@ -531,7 +532,7 @@ export function useGameState() {
     }
 
     if (giftsHook.triggerGiftLogic) giftsHook.triggerGiftLogic(ruleId, user, coins);
-  }, [giftsHook.triggerRules, giftsHook.triggerGiftLogic, donatorsHook, addToast, phase, questionBank]);
+  }, [giftsHook, donatorsHook, addToast, phase, questionBank, playersHook.players, getLikesSnapshot, startGame, winGoal]);
 
   // 5. Socket Handlers
   const handleChatBatch = useCallback((chatBatch) => {
