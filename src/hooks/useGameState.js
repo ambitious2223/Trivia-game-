@@ -65,6 +65,8 @@ export function useGameState() {
   const donorPickerRef = useRef(null); 
   const toastId = useRef(0);
   const wheelTimerRef = useRef(null);
+  // Read inside chat handlers without re-registering them every second
+  const timeLeftRef = useRef(0);
 
   const addToast = useCallback((msg, type="info") => {
     const id = ++toastId.current;
@@ -641,6 +643,10 @@ export function useGameState() {
 
   // 6. Global Listeners
   useEffect(() => {
+    timeLeftRef.current = timersHook.timeLeft;
+  }, [timersHook.timeLeft]);
+
+  useEffect(() => {
     if (!isLiveState) { 
       delete window.handleGlobalChat; delete window.submitViewerGift; return; 
     }
@@ -660,7 +666,7 @@ export function useGameState() {
 
           const cleanText = normalizeArabic(text || "");
           
-          return { ...prev, [userId]: { ...existing, currentAnswer: cleanText, status: "answered", answeredAtTime: timersHook.timeLeft } };
+          return { ...prev, [userId]: { ...existing, currentAnswer: cleanText, status: "answered", answeredAtTime: timeLeftRef.current } };
         });
       } else if (phase === "voting") {
         const western = toWesternDigits(normalizeArabic(text || "").trim());
@@ -692,7 +698,7 @@ export function useGameState() {
     };
 
     return () => { delete window.handleGlobalChat; delete window.submitViewerGift; };
-  }, [phase, questionBank.q, timersHook.timeLeft, votingHook.votingOptions, isLiveState, playersHook, votingHook, giftsHook, addToast, triggerGiftLogicOverride, donorPicker]);
+  }, [phase, questionBank.q, votingHook.votingOptions, isLiveState, playersHook, votingHook, giftsHook, addToast, triggerGiftLogicOverride, donorPicker]);
 
   // Voice TTS 
   useEffect(() => {

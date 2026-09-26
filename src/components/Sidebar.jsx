@@ -291,6 +291,11 @@ export default function Sidebar({
   const answeredCount = sortedPlayers.filter((p) => p.currentAnswer || p.status === "answered" || p.status === "correct" || p.status === "wrong").length;
   const waitingCount = Math.max(0, sortedPlayers.length - answeredCount);
 
+  // Render only the top rows to keep long streams smooth; the rest are summarized.
+  const MAX_VISIBLE_PLAYERS = 30;
+  const visiblePlayers = sortedPlayers.slice(0, MAX_VISIBLE_PLAYERS);
+  const overflowCount = Math.max(0, sortedPlayers.length - visiblePlayers.length);
+
   const sortedAllTimeWinners = [...(allTimeWinners || [])].sort(
     (a, b) => (b.wins || 0) - (a.wins || 0) || String(a.name || "").localeCompare(String(b.name || ""), "ar")
   );
@@ -321,9 +326,16 @@ export default function Sidebar({
               <div>أرسل 1 أو 2 أو 3 أو 4 الآن</div>
             </div>
           ) : (
-            sortedPlayers.map((p, i) => (
-              <AnswerRow key={p.id} player={p} phase={phase} q={q} rank={i + 1} shuffleMap={shuffleMap} />
-            ))
+            <>
+              {visiblePlayers.map((p, i) => (
+                <AnswerRow key={p.id} player={p} phase={phase} q={q} rank={i + 1} shuffleMap={shuffleMap} />
+              ))}
+              {overflowCount > 0 ? (
+                <div className="sidebar-empty-people" style={{ padding: "6px 0" }}>
+                  …و{overflowCount} لاعب آخر
+                </div>
+              ) : null}
+            </>
           )}
         </div>
       </div>
