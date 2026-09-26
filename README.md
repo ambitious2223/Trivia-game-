@@ -148,6 +148,10 @@ gifts and voting.
 (`.github/workflows/ci.yml`) runs **lint → test → build** on every push and pull
 request to `main`.
 
+Before shipping a live build, run the manual
+[`docs/live-verification.md`](docs/live-verification.md) checklist — automated
+tests cover logic, not the end-to-end TikTok session.
+
 ---
 
 ## License
